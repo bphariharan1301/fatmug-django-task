@@ -17,4 +17,9 @@ urlpatterns = [
         view=views.specific_purchase_orders,
         name="purchase-orders",
     ),
+    path(
+        "purchase_orders/<str:po_number>/acknowledge",
+        view=views.acknowledge_purchase_order,
+        name="acknowledge-purchase-order",
+    ),
 ]

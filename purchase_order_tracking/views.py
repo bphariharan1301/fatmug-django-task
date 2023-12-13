@@ -4,10 +4,11 @@ from rest_framework import status
 from datetime import datetime, timedelta
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
-from django.db.models import Avg
+from django.db.models import Avg, F, ExpressionWrapper, FloatField
 
 # Serializer imports
 from .serializers import CreatePurchaseOrderSerializer, PurchaseOrderSerializer
+from vendor_profile.serializers import VendorGetSerializer
 
 # Custom Models
 from .models import PurchaseOrder
@@ -120,7 +121,7 @@ def specific_purchase_orders(request, po_number):
                         average_quality_rating["avg_quality"]
                     ) or 0.0
                 vendor_history = HistoricalPerformance.objects.create(
-                    vendor=vendor.vendor_code,
+                    vendor=vendor,
                     date=datetime.today(),
                     on_time_delivery_rate=on_time_delivery_rate,
                     quality_rating_avg=average_quality_rating["avg_quality"],
@@ -165,3 +166,48 @@ def specific_purchase_orders(request, po_number):
     elif request.method == "DELETE":
         purchase_order.delete()
         return Response("Deleted successfully!", status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def acknowledge_purchase_order(request, po_number):
+    purchase_order = get_object_or_404(PurchaseOrder, po_number=po_number)
+
+    # Set acknowledgment_date to today's date
+    purchase_order.acknowledgment_date = datetime.today().date()
+
+    # Save the purchase_order
+    purchase_order.save()
+
+    # Get the vendor for the purchase_order
+    vendor = purchase_order.vendor
+
+    # Calculate time difference for each PO
+    time_differences = Avg(
+        PurchaseOrder.objects.all()
+        .annotate(time_difference=F("acknowledgment_date") - F("issue_date"))
+        .values_list("time_difference", flat=True)
+    )
+
+    print("time diff: ", time_differences)
+
+    # Calculate average time difference for all POs of the vendor
+    average_response_time = PurchaseOrder.objects.filter(vendor=vendor).aggregate(
+        avg_time_difference=ExpressionWrapper(
+            Avg(F("acknowledgment_date") - F("issue_date")), output_field=FloatField()
+        )
+    )["avg_time_difference"]
+
+    # Additional logic or response as needed
+
+    vendor.average_response_time = average_response_time
+    print(type(average_response_time))
+    print(average_response_time)
+
+    serializer = VendorGetSerializer(instance=vendor)
+    vendor.save()
+
+    # Return a response, you may modify this as per your needs
+    return Response(
+        serializer.data,
+        status=status.HTTP_200_OK,
+    )

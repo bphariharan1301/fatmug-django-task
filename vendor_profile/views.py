@@ -30,9 +30,11 @@ def create_vendor(request):
     if request.method == "POST":
         serializer = VendorSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+            vendor = serializer.save()
+            print(serializer.data)
+            response_data = {"vendor_code": vendor.vendor_code, **serializer.data}
+            return Response(response_data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
@@ -65,8 +67,12 @@ def update_vendor(request, vendor_code):
 
             if serializer.is_valid():
                 serializer.save()
+                response_data = {
+                    "vendor_code": vendor.vendor_code,
+                    **serializer.data,
+                }
 
-            return Response(serializer.data)
+            return Response(response_data, status=status.HTTP_202_ACCEPTED)
     else:
         return Response("Vendor not found", status=status.HTTP_404_NOT_FOUND)
 
